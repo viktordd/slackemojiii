@@ -3,9 +3,9 @@ require("dotenv").config();
 const puppeteer = require("puppeteer");
 const fs = require("fs");
 
-const gotoOption = {
-  waitUntil: "domcontentloaded",
-};
+const /** @type {puppeteer.GoToOptions} */ gotoOption = {
+    waitUntil: "domcontentloaded",
+  };
 
 const workSpaceName = process.env.WORK_SPACE_NAME;
 const userName = process.env.USER_NAME;
@@ -106,6 +106,11 @@ const writeProgress = (
 
 const main = async () => {
   try {
+    if (!workSpaceName || !userName || !password || !directory) {
+      console.log(ERROR, "Please set environment variables");
+      console.log(INFO, "Press Ctrl+C to terminate");
+      return;
+    }
     const browser = await puppeteer.launch({
       headless: false,
       args: ["--disable-notifications", "--start-maximized"],
