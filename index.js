@@ -56,30 +56,14 @@ const addEmoji = async (
   await inputFile?.uploadFile(url);
 
   await page.waitForSelector(nameInputSelector);
-  const name = await page.$eval(nameInputSelector, (input) => input.value);
+  const nameInput = await page.$(nameInputSelector);
+  // Append the file type at the end to prevent duplicate that have the same name but different file type
+  await nameInput?.type(`-${type[1]}`, { delay: 100 });
+
+  // Click save button
+  await page.click(saveButtonSelector, { delay: 100 });
 
   try {
-    // If duplicate preview is shown, it means the emoji is already uploaded.
-    await page.waitForSelector(duplicateSelector, { timeout: 700 });
-    console.log(WARNING, `${num} Duplicate: ${url}`);
-
-    // this could be because images have the same name but different file type
-    // change the name and try again
-    const nameInput = await page.$(nameInputSelector);
-    await nameInput?.click({ clickCount: 3 });
-    await nameInput?.type(`${name}-${type[1]}`);
-    await new Promise((r) => setTimeout(r, 100));
-
-    await page.waitForSelector(duplicateSelector, { timeout: 700 });
-    console.log(WARNING, `${num} Duplicate: ${url}. ${name}-${type[1]}`);
-
-    writeProgress(progress, `Duplicate: ${url}`);
-    await page.click(closeModalSelector);
-  } catch (error) {}
-
-  try {
-    // Click save button
-    await page.click(saveButtonSelector);
     // Wait the modal disappear to complete upload
     await page.waitForSelector(saveButtonSelector, {
       hidden: true,
