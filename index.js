@@ -49,7 +49,7 @@ const addEmoji = async (
 
   // Wait and click add button
   await page.waitForSelector(addButtonSelector);
-  await page.click(addButtonSelector, { delay: 1000 });
+  await page.click(addButtonSelector, { delay: 1_000 });
   // Wait and click button upload file
   await page.waitForSelector(uploadImageSelector);
   const inputFile = await page.$(uploadImageSelector);
@@ -67,7 +67,7 @@ const addEmoji = async (
     // Wait the modal disappear to complete upload
     await page.waitForSelector(saveButtonSelector, {
       hidden: true,
-      timeout: 30000,
+      timeout: 30_000,
     });
     writeProgress(progress, url);
     console.log(INFO, `${num} Uploaded: ${url}`);
@@ -128,6 +128,7 @@ const main = async () => {
     // Sign in
     await page.waitForSelector(signInPasswordSelector);
     await page.click(signInPasswordSelector);
+    await page.waitForSelector("#password");
     await page.focus("#email");
     await page.keyboard.type(userName);
     await page.focus("#password");
