@@ -174,7 +174,13 @@ const main = async () => {
     await page.click("#signin_btn");
 
     // get all files in directory
-    const files = fs.readdirSync(directory, { recursive: true });
+    const files = fs
+      .readdirSync(directory, {
+        encoding: "utf8",
+        withFileTypes: false,
+        recursive: true,
+      })
+      .filter((file) => file.match(/\.(jpe?g|png|gif)$/));
     const progress = readProgress();
 
     // Wait add emoji screen
