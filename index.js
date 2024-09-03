@@ -20,6 +20,7 @@ const uploadImageSelector =
 const nameInputSelector = '[data-qa="customize_emoji_add_dialog_input"]';
 const duplicateSelector =
   '[data-qa="customize_emoji_add_dialog_duplicate_preview"]';
+const errorSelector = '[data-qa="customize_emoji_add_dialog_error"]';
 const saveButtonSelector = '[data-qa="customize_emoji_add_dialog_go"]';
 const closeModalSelector = '[data-qa="sk_close_modal_button"]';
 
@@ -38,7 +39,7 @@ const addEmoji = async (
     console.log(WARNING, `${num} Skipped: ${url}`);
     return;
   }
-  if (progress.includes(url)) {
+  if (progress.includes(url) || progress.includes(`Duplicate: ${url}`)) {
     console.log(WARNING, `${num} Skipped: ${url}`);
     return;
   }
@@ -49,7 +50,7 @@ const addEmoji = async (
 
   // Wait and click add button
   await page.waitForSelector(addButtonSelector);
-  await page.click(addButtonSelector, { delay: 1_000 });
+  await page.click(addButtonSelector, { delay: 500 });
   // Wait and click button upload file
   await page.waitForSelector(uploadImageSelector);
   const inputFile = await page.$(uploadImageSelector);
@@ -60,24 +61,60 @@ const addEmoji = async (
   // Append the file type at the end to prevent duplicate that have the same name but different file type
   await nameInput?.type(`-${type[1]}`, { delay: 100 });
 
-  // Click save button
-  await page.click(saveButtonSelector, { delay: 100 });
+  try {
+    // If duplicate preview is shown, it means the emoji is already uploaded.
+    await page.waitForSelector(duplicateSelector, { timeout: 250 });
+    console.log(WARNING, `${num} Duplicate: ${url}`);
+    writeProgress(progress, `Duplicate: ${url}`);
+    await page.click(closeModalSelector, { delay: 100 });
+    return;
+  } catch (error) {}
 
   try {
+    // Click save button
+    await page.click(saveButtonSelector, { delay: 100 });
+
     // Wait the modal disappear to complete upload
-    await page.waitForSelector(saveButtonSelector, {
-      hidden: true,
-      timeout: 30_000,
-    });
-    writeProgress(progress, url);
-    console.log(INFO, `${num} Uploaded: ${url}`);
+    const res = await Promise.race([
+      page
+        .waitForSelector(saveButtonSelector, {
+          hidden: true,
+          timeout: 60_000,
+        })
+        .then(() => "done")
+        .catch(() => "timeout"),
+      page
+        .waitForSelector(errorSelector, { timeout: 65_000 })
+        .then(() => "error")
+        .catch(),
+    ]);
+
+    if (res === "done") {
+      writeProgress(progress, url);
+      console.log(INFO, `${num} Uploaded: ${url}`);
+    } else {
+      if (res === "error") {
+        console.log(WARNING, `${num} Upload failed: ${url}`);
+        writeProgress(progress, `Failed: ${url}`);
+      } else {
+        console.log(WARNING, `${num} Timeout: ${url}`);
+        writeProgress(progress, `Timeout: ${url}`);
+      }
+
+      try {
+        await page.click(closeModalSelector, { delay: 100 });
+      } catch (e) {
+        console.log(ERROR, `${num} Error: ${e.message}`);
+      }
+    }
   } catch (error) {
     // If the modal is not disappeared. There are some error. Skip this upload by clicking the close button
     console.log(WARNING, `${num} Upload failed: ${url}`);
     console.log(WARNING, error.message);
     writeProgress(progress, `Failed: ${url}`);
+
     try {
-      await page.click(closeModalSelector);
+      await page.click(closeModalSelector, { delay: 100 });
     } catch (e) {
       console.log(ERROR, `${num} Error: ${e.message}`);
     }
@@ -85,6 +122,7 @@ const addEmoji = async (
 };
 
 const readProgress = () => {
+  console.log(INFO, `Reading progress from ${progressFile}`);
   const text = fs.existsSync(progressFile)
     ? fs.readFileSync(progressFile, { encoding: "utf8" })
     : null;
@@ -135,6 +173,10 @@ const main = async () => {
     await page.keyboard.type(password);
     await page.click("#signin_btn");
 
+    // get all files in directory
+    const files = fs.readdirSync(directory, { recursive: true });
+    const progress = readProgress();
+
     // Wait add emoji screen
     await page.waitForSelector(addButtonSelector, { timeout: 0 });
     // Add custom css to hide toast (Toast can overlay the  button and we can not click it)
@@ -142,10 +184,6 @@ const main = async () => {
       content:
         ".ReactModal__Overlay.ReactModal__Overlay--before-close{display: none!important}",
     });
-
-    // get all files in directory
-    const files = fs.readdirSync(directory, { recursive: true });
-    const progress = readProgress();
 
     console.log(INFO, `Uploading ${files.length} images from ${directory}`);
     for (let i = 0; i < files.length; i++) {
