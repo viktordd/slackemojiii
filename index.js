@@ -32,19 +32,19 @@ const addEmoji = async (
   /** @type {puppeteer.Page} */ page,
   /** @type {string} */ url,
   /** @type {string[]} */ progress,
-  /** @type {number} */ num
+  /** @type {string} */ logPrefix
 ) => {
   const type = url.match(/\.(jpe?g|png|gif)$/);
   if (!type) {
-    console.log(WARNING, `${num} Skipped: ${url}`);
+    console.log(WARNING, `${logPrefix} Skipped: ${url}`);
     return;
   }
   if (progress.includes(url) || progress.includes(`Duplicate: ${url}`)) {
-    console.log(WARNING, `${num} Skipped: ${url}`);
+    console.log(WARNING, `${logPrefix} Skipped: ${url}`);
     return;
   }
   if (progress.includes(`Failed: ${url}`)) {
-    console.log(WARNING, `${num} Skipped previously failed: ${url}`);
+    console.log(WARNING, `${logPrefix} Skipped previously failed: ${url}`);
     return;
   }
 
@@ -59,14 +59,14 @@ const addEmoji = async (
   await page.waitForSelector(nameInputSelector);
   const nameInput = await page.$(nameInputSelector);
   // Append the file type at the end to prevent duplicate that have the same name but different file type
-  await nameInput?.type(`-${type[1]}`, { delay: 100 });
+  await nameInput?.type(`-${type[1]}`, { delay: 60 });
 
   try {
     // If duplicate preview is shown, it means the emoji is already uploaded.
-    await page.waitForSelector(duplicateSelector, { timeout: 250 });
-    console.log(WARNING, `${num} Duplicate: ${url}`);
+    await page.waitForSelector(duplicateSelector, { timeout: 400 });
+    console.log(WARNING, `${logPrefix} Duplicate: ${url}`);
     writeProgress(progress, `Duplicate: ${url}`);
-    await page.click(closeModalSelector, { delay: 100 });
+    await page.click(closeModalSelector, { delay: 500 });
     return;
   } catch (error) {}
 
@@ -91,32 +91,32 @@ const addEmoji = async (
 
     if (res === "done") {
       writeProgress(progress, url);
-      console.log(INFO, `${num} Uploaded: ${url}`);
+      console.log(INFO, `${logPrefix} Uploaded: ${url}`);
     } else {
       if (res === "error") {
-        console.log(WARNING, `${num} Upload failed: ${url}`);
+        console.log(WARNING, `${logPrefix} Upload failed: ${url}`);
         writeProgress(progress, `Failed: ${url}`);
       } else {
-        console.log(WARNING, `${num} Timeout: ${url}`);
+        console.log(WARNING, `${logPrefix} Timeout: ${url}`);
         writeProgress(progress, `Timeout: ${url}`);
       }
 
       try {
         await page.click(closeModalSelector, { delay: 100 });
       } catch (e) {
-        console.log(ERROR, `${num} Error: ${e.message}`);
+        console.log(ERROR, `${logPrefix} Error: ${e.message}`);
       }
     }
   } catch (error) {
     // If the modal is not disappeared. There are some error. Skip this upload by clicking the close button
-    console.log(WARNING, `${num} Upload failed: ${url}`);
+    console.log(WARNING, `${logPrefix} Upload failed: ${url}`);
     console.log(WARNING, error.message);
     writeProgress(progress, `Failed: ${url}`);
 
     try {
       await page.click(closeModalSelector, { delay: 100 });
     } catch (e) {
-      console.log(ERROR, `${num} Error: ${e.message}`);
+      console.log(ERROR, `${logPrefix} Error: ${e.message}`);
     }
   }
 };
@@ -151,12 +151,12 @@ const main = async () => {
     }
     const browser = await puppeteer.launch({
       headless: false,
-      args: ["--disable-notifications", "--start-maximized"],
+      args: ["--disable-notifications"],
     });
     const page = await browser.newPage();
     page.setViewport({
       width: 1280,
-      height: 1080,
+      height: 1180,
     });
     await page.goto(
       `https://${workSpaceName}.slack.com/customize/emoji`,
@@ -188,7 +188,7 @@ const main = async () => {
     console.log(INFO, `Uploading ${files.length} images from ${directory}`);
     for (let i = 0; i < files.length; i++) {
       const filePath = `${directory}/${files[i]}`;
-      await addEmoji(page, filePath, progress, i);
+      await addEmoji(page, filePath, progress, `${i + 1}/${files.length}`);
     }
     console.log(INFO, "DONE");
   } catch (error) {
